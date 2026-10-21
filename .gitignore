@@ -1,0 +1,6 @@
+# never commit these
+secrets.yaml
+firmware/secrets.yaml
+*.bin
+.esphome/
+firmware/.esphome/

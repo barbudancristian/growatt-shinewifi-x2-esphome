@@ -1,0 +1,110 @@
+# DIAGNOSTIC: pin scan for the ShineWiFi-X2 (ESP32-C3).
+# Only READS the level of 14 pins and shows them on the dongle's web page; it drives nothing.
+# Use it to find which GPIO receives data from the CH340 (see docs, "Finding the UART pins").
+# Uses the same secrets.yaml as the main firmware and the same device name, so Wi-Fi and OTA keep working.
+
+esphome:
+  name: growatt-dongle
+  friendly_name: Growatt Dongle (pin scan)
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 0
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+  - platform: web_server
+
+wifi:
+  ap:
+    ssid: DongleGrowatt
+    password: !secret hotspot_password
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  auth:
+    type: basic
+    username: !secret web_username
+    password: !secret web_password
+
+binary_sensor:
+  - platform: gpio
+    name: "GPIO0"
+    pin:
+      number: GPIO0
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO1"
+    pin:
+      number: GPIO1
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO2"
+    pin:
+      number: GPIO2
+      mode: INPUT
+      ignore_strapping_warning: true
+  - platform: gpio
+    name: "GPIO3"
+    pin:
+      number: GPIO3
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO4"
+    pin:
+      number: GPIO4
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO5"
+    pin:
+      number: GPIO5
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO6"
+    pin:
+      number: GPIO6
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO7"
+    pin:
+      number: GPIO7
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO8"
+    pin:
+      number: GPIO8
+      mode: INPUT
+      ignore_strapping_warning: true
+  - platform: gpio
+    name: "GPIO10"
+    pin:
+      number: GPIO10
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO18"
+    pin:
+      number: GPIO18
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO19"
+    pin:
+      number: GPIO19
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO20"
+    pin:
+      number: GPIO20
+      mode: INPUT
+  - platform: gpio
+    name: "GPIO21"
+    pin:
+      number: GPIO21
+      mode: INPUT

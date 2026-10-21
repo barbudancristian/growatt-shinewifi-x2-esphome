@@ -1,0 +1,661 @@
+# DIAGNOSTIC VERSION (UART byte logging) of the Growatt ShineWiFi-X2 ESPHome firmware for Growatt SPF off-grid inverters
+# https://github.com/barbudancristian/growatt-shinewifi-x2-esphome
+#
+# Passwords and broker details live in secrets.yaml (copy secrets.example.yaml).
+# Never publish secrets.yaml.
+
+substitutions:
+  name: growatt-dongle             # device / host name
+  friendly: Growatt Dongle         # title of the dongle's local web page
+  hotspot_ssid: DongleGrowatt      # setup hotspot (used until you choose a Wi-Fi network)
+  mqtt_prefix: growatt/dongle      # all MQTT topics start with this
+  timezone: "EET-2EEST,M3.5.0/3,M10.5.0/4"   # POSIX TZ string; this one is Romania / Eastern Europe
+  uart_tx: GPIO0                   # ESP -> CH340 RXD (verified on board B700.0198800, see docs)
+  uart_rx: GPIO1                   # ESP <- CH340 TXD (verified with the break test, see docs)
+  baud: "115200"                   # verified from the stock firmware's Modbus frames
+  modbus_address: "0x1"            # inverter Modbus address (stock firmware probes address 0 first)
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly}
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+  baud_rate: 0                     # logs are shown on the dongle's web page instead
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+  - platform: web_server           # lets you upload firmware.ota.bin from the dongle's web page
+
+wifi:
+  # No network is configured here on purpose: on first boot the dongle starts the
+  # hotspot below and you choose the Wi-Fi network from your phone (captive portal).
+  ap:
+    ssid: ${hotspot_ssid}
+    password: !secret hotspot_password
+
+captive_portal:
+
+web_server:
+  port: 80
+  version: 3
+  auth:
+    type: basic
+    username: !secret web_username
+    password: !secret web_password
+
+mqtt:
+  id: mqtt_client
+  broker: !secret mqtt_broker
+  port: 8883
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  discovery: false
+  topic_prefix: ${mqtt_prefix}
+  reboot_timeout: 0s
+  # Root CA for TLS. ISRG Root X1 (Let's Encrypt) is what HiveMQ Cloud uses.
+  # If you use another broker, replace it with that broker's root certificate.
+  certificate_authority: |
+    -----BEGIN CERTIFICATE-----
+    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
+    -----END CERTIFICATE-----
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "${timezone}"
+
+# HISTORY kept as retained MQTT messages on the broker (survives dongle reboots):
+#  - <prefix>/hist/00..23 : one message per hour, one point per minute (24 h in total)
+#      format: <hour start, epoch>;<minute>,<PV W>,<load W>,<SOC %>,<battery W>;...   (-1 = missing)
+#  - <prefix>/day/01..31  : one message per day: <YYYY-MM-DD>;<produced kWh>;<consumed kWh>
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          auto now = id(sntp_time).now();
+          if (!now.is_valid() || !id(mqtt_client).is_connected()) return;
+          auto r = [](float v) -> long { return std::isnan(v) ? -1L : lroundf(v); };
+
+          // ---- 24 h, one point per minute ----
+          static int cur_hour = -1;
+          static std::string buf;
+          if (now.hour != cur_hour) {
+            cur_hour = now.hour;
+            buf = std::to_string((long long) (now.timestamp - now.minute * 60 - now.second));
+          }
+          char item[64];
+          snprintf(item, sizeof(item), ";%d,%ld,%ld,%ld,%ld", now.minute,
+                   r(id(pv_power_total).state), r(id(load_power).state),
+                   r(id(battery_soc).state), r(id(battery_power).state));
+          buf += item;
+          char topic[40];
+          snprintf(topic, sizeof(topic), "${mqtt_prefix}/hist/%02d", now.hour);
+          id(mqtt_client).publish(topic, buf, 0, true);
+
+          // ---- daily totals ----
+          float p1 = id(pv1_energy_today).state, p2 = id(pv2_energy_today).state;
+          float le = id(load_energy_today).state;
+          if (std::isnan(p1) || std::isnan(le)) return;
+          float pe = p1 + (std::isnan(p2) ? 0.0f : p2);
+          static int cur_day = -1;
+          static bool wait_reset = false;
+          static float last_le = 0;
+          if (now.day_of_month != cur_day) {
+            // after midnight, wait until the inverter resets its "today" counters
+            wait_reset = (cur_day != -1) && (le > 0.3f || pe > 0.3f);
+            cur_day = now.day_of_month;
+          }
+          if (wait_reset && (le < last_le - 0.05f || le < 0.05f)) wait_reset = false;
+          last_le = le;
+          if (wait_reset) return;
+          char payload[48];
+          snprintf(payload, sizeof(payload), "%04d-%02d-%02d;%.1f;%.1f",
+                   now.year, now.month, now.day_of_month, pe, le);
+          snprintf(topic, sizeof(topic), "${mqtt_prefix}/day/%02d", now.day_of_month);
+          id(mqtt_client).publish(topic, std::string(payload), 0, true);
+
+uart:
+  id: uart_inv
+  tx_pin: ${uart_tx}
+  rx_pin: ${uart_rx}
+  baud_rate: ${baud}
+  debug:                           # DIAGNOSTIC: log every byte sent (>>>) and received (<<<)
+    direction: BOTH
+    dummy_receiver: false
+    after:
+      timeout: 20ms
+    sequence:
+      - lambda: UARTDebug::log_hex(direction, bytes, ' ');
+
+modbus:
+  id: modbus1
+  uart_id: uart_inv
+  send_wait_time: 200ms
+
+modbus_controller:
+  - id: spf
+    address: ${modbus_address}
+    modbus_id: modbus1
+    update_interval: 10s
+    setup_priority: -10
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: status_code
+    name: "Status code"
+    register_type: read
+    address: 0
+    value_type: U_WORD
+    on_value:
+      then:
+        - lambda: |-
+            static const char *const names[] = {"Standby", "-", "Discharge", "Fault", "-",
+              "PV charge", "AC charge", "Combined charge", "Combined charge + bypass",
+              "PV charge + bypass", "AC charge + bypass", "Bypass", "PV charge + discharge"};
+            int v = (int) x;
+            id(status_text).publish_state(v >= 0 && v <= 12 ? names[v] : "Unknown");
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv1_voltage
+    name: "PV1 voltage"
+    register_type: read
+    address: 1
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv2_voltage
+    name: "PV2 voltage"
+    register_type: read
+    address: 2
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv1_power
+    name: "PV1 power"
+    register_type: read
+    address: 3
+    value_type: U_DWORD
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv2_power
+    name: "PV2 power"
+    register_type: read
+    address: 5
+    value_type: U_DWORD
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: load_power
+    name: "Load power"
+    register_type: read
+    address: 9
+    value_type: U_DWORD
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: battery_voltage
+    name: "Battery voltage"
+    register_type: read
+    address: 17
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: battery_soc
+    name: "Battery SOC"
+    register_type: read
+    address: 18
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: output_voltage
+    name: "Output voltage"
+    register_type: read
+    address: 22
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: output_frequency
+    name: "Output frequency"
+    register_type: read
+    address: 23
+    value_type: U_WORD
+    unit_of_measurement: "Hz"
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: inverter_temperature
+    name: "Inverter temperature"
+    register_type: read
+    address: 25
+    value_type: U_WORD
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: load_percent
+    name: "Load percent"
+    register_type: read
+    address: 27
+    value_type: U_WORD
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: fault_code
+    name: "Fault code"
+    register_type: read
+    address: 42
+    value_type: U_WORD
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv1_energy_today
+    name: "PV1 energy today"
+    register_type: read
+    address: 48
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv2_energy_today
+    name: "PV2 energy today"
+    register_type: read
+    address: 52
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: battery_power
+    name: "Battery power"   # + = discharging, - = charging
+    register_type: read
+    address: 77
+    value_type: S_DWORD
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: load_energy_today
+    name: "Load energy today"
+    register_type: read
+    address: 85
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv1_current
+    name: "PV1 current"
+    register_type: read
+    address: 7
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv2_current
+    name: "PV2 current"
+    register_type: read
+    address: 8
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: output_apparent_power
+    name: "Output apparent power"
+    register_type: read
+    address: 11
+    value_type: U_DWORD
+    unit_of_measurement: "VA"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: bus_voltage
+    name: "Bus voltage"
+    register_type: read
+    address: 19
+    value_type: U_WORD
+    unit_of_measurement: "V"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: dcdc_temperature
+    name: "DCDC temperature"
+    register_type: read
+    address: 26
+    value_type: U_WORD
+    unit_of_measurement: "°C"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: operation_hours
+    name: "Operation hours"
+    register_type: read
+    address: 30
+    value_type: U_DWORD
+    unit_of_measurement: "h"
+    accuracy_decimals: 0
+    filters:
+      - multiply: 0.000138889
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: output_current
+    name: "Output current"
+    register_type: read
+    address: 34
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: warning_code
+    name: "Warning code"
+    register_type: read
+    address: 43
+    value_type: U_WORD
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv1_energy_total
+    name: "PV1 energy total"
+    register_type: read
+    address: 50
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: pv2_energy_total
+    name: "PV2 energy total"
+    register_type: read
+    address: 54
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: charge_energy_today
+    name: "Battery charge today"
+    register_type: read
+    address: 56
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: charge_energy_total
+    name: "Battery charge total"
+    register_type: read
+    address: 58
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: discharge_energy_today
+    name: "Battery discharge today"
+    register_type: read
+    address: 60
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: discharge_energy_total
+    name: "Battery discharge total"
+    register_type: read
+    address: 62
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: battery_discharge_current
+    name: "Battery discharge current"
+    register_type: read
+    address: 73
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: spf
+    id: load_energy_total
+    name: "Load energy total"
+    register_type: read
+    address: 87
+    value_type: U_DWORD
+    unit_of_measurement: "kWh"
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller   # setting (holding 1, read once a minute)
+    modbus_controller_id: spf
+    id: output_priority_code
+    name: "Output priority code"
+    internal: true
+    register_type: holding
+    address: 1
+    value_type: U_WORD
+    skip_updates: 5
+    on_value:
+      then:
+        - lambda: |-
+            static const char *const names[] = {"SBU", "SOL", "UTI", "SUB"};
+            int v = (int) x;
+            id(output_priority).publish_state(v >= 0 && v < 4 ? names[v] : std::string("Unknown (") + std::to_string(v) + ")");
+
+  - platform: modbus_controller   # setting (holding 2, read once a minute)
+    modbus_controller_id: spf
+    id: charger_priority_code
+    name: "Charger priority code"
+    internal: true
+    register_type: holding
+    address: 2
+    value_type: U_WORD
+    skip_updates: 5
+    on_value:
+      then:
+        - lambda: |-
+            static const char *const names[] = {"Solar first", "Solar + utility", "Solar only"};
+            int v = (int) x;
+            id(charger_priority).publish_state(v >= 0 && v < 3 ? names[v] : std::string("Unknown (") + std::to_string(v) + ")");
+
+  - platform: modbus_controller   # setting (holding 39, read once a minute)
+    modbus_controller_id: spf
+    id: battery_type_code
+    name: "Battery type code"
+    internal: true
+    register_type: holding
+    address: 39
+    value_type: U_WORD
+    skip_updates: 5
+    on_value:
+      then:
+        - lambda: |-
+            static const char *const names[] = {"AGM", "Flooded", "User", "Lithium", "User2"};
+            int v = (int) x;
+            id(battery_type).publish_state(v >= 0 && v < 5 ? names[v] : std::string("Unknown (") + std::to_string(v) + ")");
+
+  - platform: modbus_controller   # setting (holding 34)
+    modbus_controller_id: spf
+    id: max_charge_current
+    name: "Max charge current"
+    register_type: holding
+    address: 34
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    accuracy_decimals: 0
+    skip_updates: 5
+
+  - platform: template
+    id: pv_power_total
+    name: "PV power total"
+    unit_of_measurement: "W"
+    accuracy_decimals: 0
+    update_interval: 10s
+    lambda: return id(pv1_power).state + id(pv2_power).state;
+
+  - platform: wifi_signal
+    name: "WiFi signal"
+    update_interval: 60s
+
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP address"
+
+  - platform: template
+    id: status_text
+    name: "Status"
+
+  - platform: template
+    id: output_priority
+    name: "Output priority"
+
+  - platform: template
+    id: charger_priority
+    name: "Charger priority"
+
+  - platform: template
+    id: battery_type
+    name: "Battery type"

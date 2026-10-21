@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Solar Monitor</title>
+<meta name="theme-color" content="#1d2a26">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: one column; two tabs: Now (battery + energy flow) and Details (charts + every value, grouped) */
+:root{
+  --bg:#eef1ec; --surface:#fbfcf9; --line:#d6ddd3; --fg:#1d2a26; --muted:#5d6b64;
+  --sun:#c9821a; --sun-soft:#f3e3c4; --batt:#2f7d5b; --batt-soft:#d5eadf; --load:#3c5f8a; --warn:#b4472f; --grid:#e3e8e1;
+  --f-num:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141c19; --surface:#1c2622; --line:#2c3833; --fg:#e7ede8; --muted:#97a69e;
+  --sun:#e7a43c; --sun-soft:#3a2f1c; --batt:#5cc495; --batt-soft:#1d3a2e; --load:#86a8d6; --warn:#e57a5f; --grid:#25302b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141c19; --surface:#1c2622; --line:#2c3833; --fg:#e7ede8; --muted:#97a69e;
+  --sun:#e7a43c; --sun-soft:#3a2f1c; --batt:#5cc495; --batt-soft:#1d3a2e; --load:#86a8d6; --warn:#e57a5f; --grid:#25302b; color-scheme:dark}
+
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 28px}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-num);font-weight:700;font-size:2rem;letter-spacing:.01em;margin:0;line-height:1;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin-top:4px}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;font-weight:700;padding:5px 10px;border-radius:999px;
+  background:var(--surface);border:1px solid var(--line);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.ok .dot{background:var(--batt)} .pill.bad .dot{background:var(--warn)} .pill.wait .dot{background:var(--sun)}
+.note{font-size:.82rem;color:var(--muted);background:var(--sun-soft);border-radius:10px;padding:8px 12px}
+
+.tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.tabs button{font:inherit;font-weight:700;font-size:.9rem;border:0;border-radius:9px;padding:9px 0;background:transparent;color:var(--muted);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--surface)}
+.tabs button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.view{display:flex;flex-direction:column;gap:14px}
+
+.battery{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.label{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.soc-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.soc{font-family:var(--f-num);font-weight:700;font-size:4.2rem;line-height:.9;font-variant-numeric:tabular-nums}
+.soc small{font-size:1.6rem;color:var(--muted);margin-left:2px}
+.kwh{text-align:right;color:var(--muted);font-size:.9rem}
+.kwh b{color:var(--fg);font-family:var(--f-num);font-size:1.35rem;font-weight:600}
+.cells{display:grid;grid-template-columns:repeat(10,1fr);gap:4px}
+.cells i{height:22px;border-radius:4px;background:var(--batt-soft);border:1px solid var(--line)}
+.cells i.on{background:var(--batt);border-color:var(--batt)}
+.cells i.low{background:var(--warn);border-color:var(--warn)}
+.batt-state{font-weight:700}
+
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:6px}
+.node{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 8px;text-align:center;min-width:0}
+.node .v{font-family:var(--f-num);font-weight:700;font-size:1.9rem;line-height:1;font-variant-numeric:tabular-nums}
+.node .u{font-size:.95rem;color:var(--muted);font-weight:600}
+.node .t{font-size:.78rem;color:var(--muted);margin-top:4px}
+.node.sun{border-top:3px solid var(--sun)} .node.bat{border-top:3px solid var(--batt)} .node.home{border-top:3px solid var(--load)}
+.arrow{color:var(--muted);font-size:1.1rem}
+.arrow.live{color:var(--sun)}
+
+.status{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.chip{font-weight:700;font-size:.85rem;padding:4px 10px;border-radius:999px;background:var(--batt-soft);color:var(--fg)}
+.chip.fault{background:var(--warn);color:var(--surface)}
+
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.kv{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;justify-content:space-between;column-gap:8px;row-gap:2px;align-items:baseline;min-width:0}
+.kv b{margin-left:auto}
+.kv:nth-child(odd){border-right:1px solid var(--line)}
+.kv span{color:var(--muted);font-size:.85rem}
+.kv b{font-family:var(--f-num);font-size:1.15rem;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kv b.txt{white-space:normal;text-align:right;font-family:var(--f-body);font-size:.9rem;font-weight:700}
+h2{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:6px 2px 0}
+
+.table{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+td:first-child,th:first-child{text-align:left;color:var(--muted)}
+td b{font-family:var(--f-num);font-size:1.1rem;font-weight:600}
+tr:last-child td{border-bottom:0}
+
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 12px 6px}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.legend{display:flex;gap:12px;font-size:.78rem;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+svg{display:block;width:100%;height:auto;max-width:100%}
+.chart-note{font-size:.75rem;color:var(--muted);margin-top:4px}
+
+footer{color:var(--muted);font-size:.8rem;text-align:center;margin-top:6px}
+@media (max-width:380px){.soc{font-size:3.4rem}.node .v{font-size:1.5rem}.grid{grid-template-columns:1fr}.kv:nth-child(odd){border-right:0}}
+@media (prefers-reduced-motion:no-preference){.arrow.live{animation:pulse 1.6s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.35}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="title">–</h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <div class="pill wait" id="conn"><span class="dot"></span><span id="connText">…</span></div>
+  </header>
+
+  <div class="note" id="demoNote" hidden></div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-now" aria-controls="now" aria-selected="true" data-t="tabNow"></button>
+    <button role="tab" id="tab-details" aria-controls="details" aria-selected="false" data-t="tabDetails"></button>
+  </nav>
+
+  <!-- ============ NOW ============ -->
+  <section class="view" id="now" role="tabpanel" aria-labelledby="tab-now">
+    <section class="battery">
+      <div class="label" data-t="battery"></div>
+      <div class="soc-row">
+        <div class="soc"><span id="soc">–</span><small>%</small></div>
+        <div class="kwh"><span data-t="available"></span><br><b id="kwh">–</b> <span id="ofKwh"></span></div>
+      </div>
+      <div class="cells" id="cells" aria-hidden="true"></div>
+      <div class="batt-state" id="battState">–</div>
+    </section>
+
+    <section class="flow">
+      <div class="node sun"><div class="v"><span id="pv">–</span><span class="u"> W</span></div><div class="t" data-t="panels"></div></div>
+      <div class="arrow" id="a1">›</div>
+      <div class="node bat"><div class="v"><span id="bp">–</span><span class="u"> W</span></div><div class="t" id="bpLabel"></div></div>
+      <div class="arrow" id="a2">›</div>
+      <div class="node home"><div class="v"><span id="load">–</span><span class="u"> W</span></div><div class="t" data-t="load"></div></div>
+    </section>
+
+    <div class="status"><span class="label" data-t="inverter"></span><span class="chip" id="status">–</span></div>
+
+    <h2 data-t="today"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="produced"></span><b id="eToday">–</b></div>
+      <div class="kv"><span data-t="consumed"></span><b id="lToday">–</b></div>
+    </div>
+
+    <h2 data-t="summary"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="battVoltage"></span><b id="bv">–</b></div>
+      <div class="kv"><span data-t="temperature"></span><b id="temp">–</b></div>
+      <div class="kv"><span data-t="acOutput"></span><b id="ac">–</b></div>
+      <div class="kv"><span data-t="wifi"></span><b id="wifi">–</b></div>
+    </div>
+  </section>
+
+  <!-- ============ DETAILS ============ -->
+  <section class="view" id="details" role="tabpanel" aria-labelledby="tab-details" hidden>
+    <div class="chart">
+      <div class="chart-head">
+        <span class="label" data-t="chPower"></span>
+        <span class="legend"><span><i style="background:var(--sun)"></i><span data-t="panels"></span></span><span><i style="background:var(--load)"></i><span data-t="load"></span></span></span>
+      </div>
+      <svg id="chPower" viewBox="0 0 340 150" role="img"></svg>
+    </div>
+    <div class="chart">
+      <div class="chart-head">
+        <span class="label" data-t="chSoc"></span>
+        <span class="legend"><span><i style="background:var(--batt)"></i>SOC %</span></span>
+      </div>
+      <svg id="chSoc" viewBox="0 0 340 120" role="img"></svg>
+      <div class="chart-note" id="histNote"></div>
+    </div>
+    <div class="chart">
+      <div class="chart-head">
+        <span class="label" data-t="chDays"></span>
+        <span class="legend"><span><i style="background:var(--sun)"></i><span data-t="produced"></span></span><span><i style="background:var(--load)"></i><span data-t="consumed"></span></span></span>
+      </div>
+      <svg id="chDays" viewBox="0 0 340 150" role="img"></svg>
+      <div class="chart-note" id="daysNote">–</div>
+    </div>
+
+    <h2 data-t="panels"></h2>
+    <div class="table"><table>
+      <thead><tr><th></th><th data-t="voltage"></th><th data-t="current"></th><th data-t="power"></th><th data-t="today"></th><th data-t="total"></th></tr></thead>
+      <tbody>
+        <tr><td>PV1</td><td><b id="d-pv1v">–</b></td><td><b id="d-pv1a">–</b></td><td><b id="d-pv1w">–</b></td><td><b id="d-pv1e">–</b></td><td><b id="d-pv1t">–</b></td></tr>
+        <tr><td>PV2</td><td><b id="d-pv2v">–</b></td><td><b id="d-pv2a">–</b></td><td><b id="d-pv2w">–</b></td><td><b id="d-pv2e">–</b></td><td><b id="d-pv2t">–</b></td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 data-t="battery"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="soc"></span><b id="d-soc">–</b></div>
+      <div class="kv"><span data-t="voltage"></span><b id="d-bv">–</b></div>
+      <div class="kv"><span data-t="power"></span><b id="d-bp">–</b></div>
+      <div class="kv"><span data-t="dischargeCurrent"></span><b id="d-bda">–</b></div>
+      <div class="kv"><span data-t="chargedToday"></span><b id="d-cht">–</b></div>
+      <div class="kv"><span data-t="dischargedToday"></span><b id="d-dct">–</b></div>
+      <div class="kv"><span data-t="chargedTotal"></span><b id="d-chT">–</b></div>
+      <div class="kv"><span data-t="dischargedTotal"></span><b id="d-dcT">–</b></div>
+    </div>
+
+    <h2 data-t="acOutputTitle"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="activePower"></span><b id="d-lw">–</b></div>
+      <div class="kv"><span data-t="apparentPower"></span><b id="d-lva">–</b></div>
+      <div class="kv"><span data-t="voltage"></span><b id="d-ov">–</b></div>
+      <div class="kv"><span data-t="frequency"></span><b id="d-of">–</b></div>
+      <div class="kv"><span data-t="current"></span><b id="d-oa">–</b></div>
+      <div class="kv"><span data-t="loadPercent"></span><b id="d-lp">–</b></div>
+      <div class="kv"><span data-t="loadToday"></span><b id="d-le">–</b></div>
+      <div class="kv"><span data-t="loadTotal"></span><b id="d-lT">–</b></div>
+    </div>
+
+    <h2 data-t="inverter"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="state"></span><b class="txt" id="d-st">–</b></div>
+      <div class="kv"><span data-t="hours"></span><b id="d-hrs">–</b></div>
+      <div class="kv"><span data-t="tInverter"></span><b id="d-ti">–</b></div>
+      <div class="kv"><span data-t="tDcdc"></span><b id="d-td">–</b></div>
+      <div class="kv"><span data-t="busVoltage"></span><b id="d-bus">–</b></div>
+      <div class="kv"><span data-t="faultCode"></span><b id="d-fc">–</b></div>
+      <div class="kv"><span data-t="warningCode"></span><b id="d-wc">–</b></div>
+      <div class="kv"><span data-t="producedTotal"></span><b id="d-pvT">–</b></div>
+    </div>
+
+    <h2 data-t="settings"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="outputPriority"></span><b class="txt" id="d-op">–</b></div>
+      <div class="kv"><span data-t="chargerPriority"></span><b class="txt" id="d-cp">–</b></div>
+      <div class="kv"><span data-t="batteryType"></span><b class="txt" id="d-bt">–</b></div>
+      <div class="kv"><span data-t="maxCharge"></span><b id="d-mcc">–</b></div>
+    </div>
+
+    <h2 data-t="dongle"></h2>
+    <div class="grid">
+      <div class="kv"><span data-t="wifi"></span><b id="d-wifi">–</b></div>
+      <div class="kv"><span data-t="uptime"></span><b id="d-up">–</b></div>
+      <div class="kv"><span data-t="ip"></span><b id="d-ip">–</b></div>
+      <div class="kv"><span data-t="lastMsg"></span><b id="d-last">–</b></div>
+    </div>
+  </section>
+
+  <footer><span data-t="updated"></span> <span id="updated">–</span><span id="footerText"></span></footer>
+</div>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<script>
+/* =====================================================================
+   CONFIGURATION - edit only this block
+   ===================================================================== */
+const CONFIG = {
+  title: "My Solar",                                   // page title
+  subtitle: "Growatt SPF 6000 ES Plus · 6 × 600 W · 10 kWh battery",  // line under the title
+  language: "en",                                      // "en" or "ro"
+  batteryKwh: 10,                                      // usable battery capacity in kWh
+  footer: "",                                          // optional text at the bottom
+  // HiveMQ Cloud: WebSocket URL of your cluster (port 8884, path /mqtt)
+  url: "wss://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.s1.eu.hivemq.cloud:8884/mqtt",
+  // a credential with "Subscribe Only" permission - it is visible to anyone who opens the page
+  username: "viewer",
+  password: "change-me-viewer",
+  prefix: "growatt/dongle"                             // same as mqtt_prefix in the firmware
+};
+/* ===================================================================== */
+
+const TXT = {
+  en: {tabNow:"Now", tabDetails:"Details", battery:"Battery", available:"available", of:"of", panels:"Panels", load:"Load",
+    inverter:"Inverter", today:"Today", produced:"Produced", consumed:"Consumed", summary:"At a glance", battVoltage:"Battery voltage",
+    temperature:"Temperature", acOutput:"AC output", wifi:"Wi-Fi signal", chPower:"Power, last 24 h", chSoc:"Battery, last 24 h",
+    chDays:"Per day, last 30", voltage:"Voltage", current:"Current", power:"Power", total:"Total", soc:"State of charge",
+    dischargeCurrent:"Discharge current", chargedToday:"Charged today", dischargedToday:"Discharged today", chargedTotal:"Charged total",
+    dischargedTotal:"Discharged total", acOutputTitle:"AC output (house)", activePower:"Active power", apparentPower:"Apparent power",
+    frequency:"Frequency", loadPercent:"Inverter load", loadToday:"Consumed today", loadTotal:"Consumed total", state:"State",
+    hours:"Operating hours", tInverter:"Inverter temp.", tDcdc:"DC-DC temp.", busVoltage:"Bus voltage", faultCode:"Fault code",
+    warningCode:"Warning code", producedTotal:"Produced total", settings:"Inverter settings", outputPriority:"Output priority",
+    chargerPriority:"Charger source", batteryType:"Battery type", maxCharge:"Max charge current", dongle:"Dongle", uptime:"Running for",
+    ip:"Local IP", lastMsg:"Last message", updated:"Last update:", discharging:"Discharging · powering the house",
+    charging:"Charging from the sun", idle:"Idle", bDischarge:"Discharge", bCharge:"Charge", bIdle:"Battery", none:"none",
+    connecting:"Connecting…", live:"Live", stale:"Stale data", offline:"Dongle offline", noConn:"No connection", waiting:"Waiting for data…",
+    demo:"Sample data", demoNote:"Sample data: fill in the CONFIG block at the top of index.html to see your own system.",
+    collecting:"Collecting data…", histNote:"One point per minute, kept by the dongle", days:"days", day:"day", recorded:"recorded",
+    daysEmpty:"Daily totals appear after the first minute of operation.", now:"now", hoursShort:"h", daysShort:"days",
+    status:{}, op:{SBU:"SBU (solar, battery, utility)", SOL:"SOL (solar first)", UTI:"UTI (utility first)", SUB:"SUB (solar, utility, battery)"},
+    cp:{}},
+  ro: {tabNow:"Acum", tabDetails:"Detaliat", battery:"Baterie", available:"disponibil", of:"din", panels:"Panouri", load:"Consum",
+    inverter:"Invertor", today:"Azi", produced:"Produs", consumed:"Consumat", summary:"Pe scurt", battVoltage:"Tensiune baterie",
+    temperature:"Temperatură", acOutput:"Ieșire AC", wifi:"Semnal Wi-Fi", chPower:"Putere, ultimele 24 h", chSoc:"Baterie, ultimele 24 h",
+    chDays:"Pe zile, ultimele 30", voltage:"Tensiune", current:"Curent", power:"Putere", total:"Total", soc:"Stare de încărcare",
+    dischargeCurrent:"Curent descărcare", chargedToday:"Încărcat azi", dischargedToday:"Descărcat azi", chargedTotal:"Încărcat total",
+    dischargedTotal:"Descărcat total", acOutputTitle:"Ieșire AC (casa)", activePower:"Putere activă", apparentPower:"Putere aparentă",
+    frequency:"Frecvență", loadPercent:"Încărcare invertor", loadToday:"Consum azi", loadTotal:"Consum total", state:"Stare",
+    hours:"Ore funcționare", tInverter:"Temp. invertor", tDcdc:"Temp. DC-DC", busVoltage:"Tensiune bus", faultCode:"Cod eroare",
+    warningCode:"Cod avertizare", producedTotal:"Produs total", settings:"Setări invertor", outputPriority:"Prioritate ieșire",
+    chargerPriority:"Sursă încărcare", batteryType:"Tip baterie", maxCharge:"Curent max. încărcare", dongle:"Dongle", uptime:"Pornit de",
+    ip:"IP local", lastMsg:"Ultimul mesaj", updated:"Ultima actualizare:", discharging:"Se descarcă · alimentează casa",
+    charging:"Se încarcă de la soare", idle:"În repaus", bDischarge:"Descărcare", bCharge:"Încărcare", bIdle:"Baterie", none:"fără",
+    connecting:"Se conectează…", live:"Live", stale:"Date vechi", offline:"Dongle offline", noConn:"Fără conexiune", waiting:"Aștept date…",
+    demo:"Date de test", demoNote:"Date de test: completează blocul CONFIG de la începutul fișierului index.html ca să vezi sistemul tău.",
+    collecting:"Se adună date…", histNote:"Un punct pe minut, păstrat de dongle", days:"zile", day:"zi", recorded:"înregistrate",
+    daysEmpty:"Totalurile pe zi apar după primul minut de funcționare.", now:"acum", hoursShort:"h", daysShort:"zile",
+    status:{"Standby":"Standby","Discharge":"Descărcare","Fault":"Eroare","PV charge":"Încărcare PV","AC charge":"Încărcare AC",
+      "Combined charge":"Încărcare combinată","Combined charge + bypass":"Combinat + bypass","PV charge + bypass":"PV + bypass",
+      "AC charge + bypass":"AC + bypass","Bypass":"Bypass","PV charge + discharge":"PV + descărcare","Unknown":"Necunoscut"},
+    op:{SBU:"SBU (soare, baterie, rețea)", SOL:"SOL (soare întâi)", UTI:"UTI (rețea întâi)", SUB:"SUB (soare, rețea, baterie)"},
+    cp:{"Solar first":"Soare întâi","Solar + utility":"Soare + rețea","Solar only":"Doar soare"}}
+};
+const L = TXT[CONFIG.language] || TXT.en;
+const LOCALE = CONFIG.language === "ro" ? "ro-RO" : "en-GB";
+const tr = (map, v) => (v && map[v]) || v;
+
+const S = {};
+let lastMsg = 0, online = null, demo = false, connected = false;
+const $ = id => document.getElementById(id);
+const key = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const fmt = (v, d = 0) => v === null ? "–" : v.toLocaleString(LOCALE, {minimumFractionDigits: d, maximumFractionDigits: d});
+function get(prefix) {
+  const k = S[prefix] !== undefined ? prefix : Object.keys(S).find(x => x.startsWith(prefix));
+  if (!k) return null;
+  const v = S[k];
+  return (v === "" || isNaN(+v)) ? null : +v;
+}
+const u = (v, d, unit) => v === null ? "–" : fmt(v, d) + " " + unit;
+const set = (id, txt) => { const el = $(id); if (el) el.textContent = txt; };
+
+/* ---------- static texts ---------- */
+document.documentElement.lang = CONFIG.language === "ro" ? "ro" : "en";
+document.title = CONFIG.title;
+set("title", CONFIG.title); set("subtitle", CONFIG.subtitle);
+set("ofKwh", L.of + " " + fmt(CONFIG.batteryKwh) + " kWh");
+document.querySelectorAll("[data-t]").forEach(el => { el.textContent = L[el.dataset.t] || el.dataset.t; });
+if (CONFIG.footer) { $("footerText").innerHTML = "<br>"; $("footerText").append(CONFIG.footer); }
+set("connText", L.connecting);
+
+/* ---------- tabs ---------- */
+function showTab(name) {
+  ["now", "details"].forEach(n => { $(n).hidden = n !== name; $("tab-" + n).setAttribute("aria-selected", n === name); });
+  if (name === "details") drawCharts();
+  try { history.replaceState(null, "", "#" + name); } catch (e) {}
+}
+$("tab-now").onclick = () => showTab("now");
+$("tab-details").onclick = () => showTab("details");
+
+const cells = $("cells");
+for (let i = 0; i < 10; i++) cells.appendChild(document.createElement("i"));
+
+/* ---------- history kept by the dongle (retained MQTT messages) ---------- */
+let hist = [];
+const histHours = {}, days = {};
+const val = x => (x === undefined || x === "-1" || isNaN(+x)) ? null : +x;
+function parseHour(hh, msg) {
+  const parts = msg.split(";"), start = +parts[0] * 1000;
+  if (!start) return;
+  histHours[hh] = parts.slice(1).map(it => {
+    const [m, pv, load, soc, bp] = it.split(",");
+    return {t: start + (+m) * 60e3, pv: val(pv), load: val(load), soc: val(soc), bp: bp === "-1" ? null : +bp};
+  });
+  rebuildHist();
+}
+function rebuildHist() {
+  const now = Date.now();
+  hist = Object.values(histHours).flat().filter(p => now - p.t <= 24 * 3600e3 && p.t <= now + 60e3).sort((a, b) => a.t - b.t);
+}
+function parseDay(msg) {
+  const [d, pv, load] = msg.split(";");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) days[d] = {pv: +pv, load: +load};
+}
+function pvTotal() {
+  let pv = get("pvpowertotal");
+  const p1 = get("pv1power"), p2 = get("pv2power");
+  if (pv === null && (p1 !== null || p2 !== null)) pv = (p1 || 0) + (p2 || 0);
+  return pv;
+}
+
+/* ---------- charts ---------- */
+function niceMax(v) { if (v <= 0) return 100; const p = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / p) * p; }
+function axisY(g, y, yMax, L0, W, R, unit) {
+  [0, .5, 1].forEach(f => {
+    const yy = y(yMax * f);
+    g.push(`<line x1="${L0}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--grid)" stroke-width="1"/>`);
+    g.push(`<text x="${L0 - 4}" y="${yy + 3}" text-anchor="end" font-size="9" fill="var(--muted)">${fmt(yMax * f)}${f === 1 ? " " + unit : ""}</text>`);
+  });
+}
+function drawChart(svg, series, H, yMaxFixed, unit) {
+  const W = 340, L0 = 46, R = 6, T = 8, B = 20, now = Date.now(), t0 = now - 24 * 3600e3;
+  const x = t => L0 + (t - t0) / (now - t0) * (W - L0 - R);
+  const all = series.flatMap(s => hist.map(p => p[s.k]).filter(v => v !== null && v !== undefined));
+  const yMax = yMaxFixed || niceMax(Math.max(0, ...all));
+  const y = v => T + (1 - v / yMax) * (H - T - B);
+  const g = [];
+  axisY(g, y, yMax, L0, W, R, unit);
+  for (let h = 0; h <= 24; h += 6) {
+    const t = t0 + h * 3600e3;
+    const lab = h === 24 ? L.now : new Date(t).toLocaleTimeString(LOCALE, {hour: "2-digit", minute: "2-digit"});
+    g.push(`<text x="${x(t)}" y="${H - 5}" text-anchor="${h === 0 ? "start" : h === 24 ? "end" : "middle"}" font-size="9" fill="var(--muted)">${lab}</text>`);
+  }
+  series.forEach(s => {
+    const pts = hist.filter(p => p[s.k] !== null && p[s.k] !== undefined);
+    if (pts.length < 2) return;
+    let d = "", prev = null;
+    pts.forEach(p => { d += (d === "" || (prev && p.t - prev.t > 10 * 60e3) ? "M" : "L") + x(p.t).toFixed(1) + "," + y(p[s.k]).toFixed(1); prev = p; });
+    if (s.area) g.push(`<path d="M${x(pts[0].t).toFixed(1)},${y(0)}${d.replace(/^M/, "L")}L${x(pts[pts.length - 1].t).toFixed(1)},${y(0)}Z" fill="${s.c}" fill-opacity=".18" stroke="none"/>`);
+    g.push(`<path d="${d}" fill="none" stroke="${s.c}" stroke-width="1.8" stroke-linejoin="round"/>`);
+    const lp = pts[pts.length - 1];
+    g.push(`<circle cx="${x(lp.t)}" cy="${y(lp[s.k])}" r="3" fill="${s.c}"/>`);
+  });
+  if (hist.length < 2) g.push(`<text x="${(W + L0) / 2}" y="${H / 2}" text-anchor="middle" font-size="11" fill="var(--muted)">${L.collecting}</text>`);
+  svg.innerHTML = g.join("");
+}
+function dayKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function drawDays() {
+  const W = 340, H = 150, L0 = 46, R = 6, T = 8, B = 20, N = 30;
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const list = [];
+  for (let i = N - 1; i >= 0; i--) { const d = new Date(today.getTime() - i * 86400e3); list.push({k: dayKey(d), d, v: days[dayKey(d)] || null}); }
+  const have = list.filter(x => x.v);
+  const yMax = niceMax(Math.max(1, ...have.flatMap(x => [x.v.pv, x.v.load])));
+  const y = v => T + (1 - v / yMax) * (H - T - B);
+  const slot = (W - L0 - R) / N, bw = Math.max(2, slot * 0.36), g = [];
+  axisY(g, y, yMax, L0, W, R, "kWh");
+  list.forEach((x, i) => {
+    const x0 = L0 + i * slot + (slot - 2 * bw - 1) / 2;
+    if (x.v) {
+      g.push(`<rect x="${x0.toFixed(1)}" y="${y(x.v.pv).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(x.v.pv)).toFixed(1)}" fill="var(--sun)" rx="1"><title>${x.k}: ${L.produced} ${fmt(x.v.pv, 1)} kWh</title></rect>`);
+      g.push(`<rect x="${(x0 + bw + 1).toFixed(1)}" y="${y(x.v.load).toFixed(1)}" width="${bw.toFixed(1)}" height="${(y(0) - y(x.v.load)).toFixed(1)}" fill="var(--load)" rx="1"><title>${x.k}: ${L.consumed} ${fmt(x.v.load, 1)} kWh</title></rect>`);
+    }
+    if (i % 7 === 2 || i === N - 1) {
+      const lab = i === N - 1 ? L.today : x.d.getDate() + "." + String(x.d.getMonth() + 1).padStart(2, "0");
+      g.push(`<text x="${(L0 + i * slot + slot / 2).toFixed(1)}" y="${H - 5}" text-anchor="${i === N - 1 ? "end" : "middle"}" font-size="9" fill="var(--muted)">${lab}</text>`);
+    }
+  });
+  if (!have.length) g.push(`<text x="${(W + L0) / 2}" y="${H / 2}" text-anchor="middle" font-size="11" fill="var(--muted)">${L.collecting}</text>`);
+  $("chDays").innerHTML = g.join("");
+  const sp = have.reduce((a, x) => a + x.v.pv, 0), sl = have.reduce((a, x) => a + x.v.load, 0);
+  set("daysNote", have.length ? `${have.length} ${have.length === 1 ? L.day : L.days} ${L.recorded} · ${L.produced} ${fmt(sp, 1)} kWh · ${L.consumed} ${fmt(sl, 1)} kWh` : L.daysEmpty);
+}
+function drawCharts() {
+  if ($("details").hidden) return;
+  drawChart($("chPower"), [{k: "pv", c: "var(--sun)", area: true}, {k: "load", c: "var(--load)"}], 150, 0, "W");
+  drawChart($("chSoc"), [{k: "soc", c: "var(--batt)", area: true}], 120, 100, "%");
+  drawDays();
+  const h = hist.length ? (Date.now() - hist[0].t) / 3600e3 : 0;
+  set("histNote", `${L.histNote}${hist.length ? ` (${fmt(Math.min(h, 24), 1)} ${L.hoursShort})` : ""}.`);
+}
+
+/* ---------- render ---------- */
+function render() {
+  const soc = get("batterysoc");
+  set("soc", fmt(soc));
+  set("kwh", soc === null ? "–" : fmt(soc / 100 * CONFIG.batteryKwh, 1) + " kWh");
+  [...cells.children].forEach((c, i) => { c.className = soc !== null && i < Math.round(soc / 10) ? (soc <= 20 ? "low" : "on") : ""; });
+
+  const pv = pvTotal(), load = get("loadpower"), bp = get("batterypower");   // + = discharging
+  set("pv", fmt(pv)); set("load", fmt(load));
+  set("bp", bp === null ? "–" : fmt(Math.abs(bp)));
+  let st = "–", lbl = L.bIdle;
+  if (bp !== null) {
+    if (bp > 15) { st = L.discharging; lbl = L.bDischarge; }
+    else if (bp < -15) { st = L.charging; lbl = L.bCharge; }
+    else st = L.idle;
+  }
+  set("battState", st); set("bpLabel", lbl);
+  $("a1").className = "arrow" + (pv > 20 ? " live" : "");
+  $("a2").className = "arrow" + (load > 20 ? " live" : "");
+
+  const status = tr(L.status, S["status"]) || null, fault = get("faultcode");
+  set("status", status || "–");
+  $("status").className = "chip" + ((fault && fault > 0) || S["status"] === "Fault" ? " fault" : "");
+
+  const e1 = get("pv1energytoday"), e2 = get("pv2energytoday");
+  set("eToday", e1 === null ? "–" : fmt((e1 || 0) + (e2 || 0), 1) + " kWh");
+  set("lToday", u(get("loadenergytoday"), 1, "kWh"));
+  set("bv", u(get("batteryvoltage"), 1, "V"));
+  set("temp", u(get("invertertemperature"), 1, "°C"));
+  const ov = get("outputvoltage"), of = get("outputfrequency");
+  set("ac", ov === null ? "–" : fmt(ov) + " V · " + fmt(of, 1) + " Hz");
+  set("wifi", u(get("wifisignal"), 0, "dBm"));
+
+  set("d-pv1v", u(get("pv1voltage"), 1, "V")); set("d-pv1a", u(get("pv1current"), 1, "A")); set("d-pv1w", u(get("pv1power"), 0, "W"));
+  set("d-pv1e", u(e1, 1, "kWh")); set("d-pv1t", u(get("pv1energytotal"), 0, "kWh"));
+  set("d-pv2v", u(get("pv2voltage"), 1, "V")); set("d-pv2a", u(get("pv2current"), 1, "A")); set("d-pv2w", u(get("pv2power"), 0, "W"));
+  set("d-pv2e", u(e2, 1, "kWh")); set("d-pv2t", u(get("pv2energytotal"), 0, "kWh"));
+  set("d-soc", u(soc, 0, "%")); set("d-bv", u(get("batteryvoltage"), 2, "V"));
+  set("d-bp", bp === null ? "–" : (bp > 15 ? "−" : bp < -15 ? "+" : "") + fmt(Math.abs(bp)) + " W");
+  set("d-bda", u(get("batterydischargecurrent"), 1, "A"));
+  set("d-cht", u(get("batterychargetoday"), 1, "kWh")); set("d-dct", u(get("batterydischargetoday"), 1, "kWh"));
+  set("d-chT", u(get("batterychargetotal"), 0, "kWh")); set("d-dcT", u(get("batterydischargetotal"), 0, "kWh"));
+  set("d-lw", u(load, 0, "W")); set("d-lva", u(get("outputapparentpower"), 0, "VA"));
+  set("d-ov", u(ov, 1, "V")); set("d-of", u(of, 2, "Hz")); set("d-oa", u(get("outputcurrent"), 1, "A"));
+  set("d-lp", u(get("loadpercent"), 1, "%")); set("d-le", u(get("loadenergytoday"), 1, "kWh")); set("d-lT", u(get("loadenergytotal"), 0, "kWh"));
+  set("d-st", status || "–"); set("d-hrs", u(get("operationhours"), 0, "h"));
+  set("d-ti", u(get("invertertemperature"), 1, "°C")); set("d-td", u(get("dcdctemperature"), 1, "°C"));
+  set("d-bus", u(get("busvoltage"), 1, "V"));
+  set("d-fc", fault === null ? "–" : fault === 0 ? L.none : fmt(fault));
+  const wc = get("warningcode"); set("d-wc", wc === null ? "–" : wc === 0 ? L.none : fmt(wc));
+  const t1 = get("pv1energytotal"), t2 = get("pv2energytotal");
+  set("d-pvT", t1 === null ? "–" : fmt((t1 || 0) + (t2 || 0), 0) + " kWh");
+  set("d-op", tr(L.op, S["outputpriority"]) || "–");
+  set("d-cp", tr(L.cp, S["chargerpriority"]) || "–");
+  set("d-bt", S["batterytype"] || "–");
+  set("d-mcc", u(get("maxchargecurrent"), 0, "A"));
+  set("d-wifi", u(get("wifisignal"), 0, "dBm"));
+  const up = get("uptime");
+  set("d-up", up === null ? "–" : up >= 86400 ? fmt(up / 86400, 1) + " " + L.daysShort : fmt(up / 3600, 1) + " " + L.hoursShort);
+  set("d-ip", S["ipaddress"] || "–");
+  const last = lastMsg ? new Date(lastMsg).toLocaleTimeString(LOCALE) : "–";
+  set("d-last", last); set("updated", last);
+}
+
+function setConn(cls, text) { $("conn").className = "pill " + cls; set("connText", text); }
+function refreshConn() {
+  if (demo) return setConn("wait", L.demo);
+  if (!connected) return setConn("bad", L.noConn);
+  if (online === false) return setConn("bad", L.offline);
+  if (!lastMsg) return setConn("wait", L.waiting);
+  if (Date.now() - lastMsg > 90000) return setConn("wait", L.stale);
+  setConn("ok", L.live);
+}
+
+/* ---------- sample data, shown only while CONFIG is not filled in ---------- */
+function loadDemo() {
+  demo = true;
+  Object.assign(S, {batterysoc: 43, pvpowertotal: 0, pv1power: 0, pv2power: 0, pv1voltage: 0, pv2voltage: 0, pv1current: 0, pv2current: 0,
+    loadpower: 141, batterypower: 188, batteryvoltage: 52.24, loadpercent: 2.3, outputvoltage: 230.1, outputfrequency: 49.99,
+    outputcurrent: 0.8, outputapparentpower: 180, invertertemperature: 32.4, dcdctemperature: 30.1, busvoltage: 384.2, faultcode: 0,
+    warningcode: 0, pv1energytoday: 4.6, pv2energytoday: 0, pv1energytotal: 1874, pv2energytotal: 0, loadenergytoday: 2.7,
+    loadenergytotal: 1530, batterychargetoday: 2.4, batterydischargetoday: 1.9, batterychargetotal: 912, batterydischargetotal: 845,
+    batterydischargecurrent: 3.6, operationhours: 4120, wifisignal: -54, uptime: 7380, status: "Discharge", ipaddress: "192.168.1.57",
+    outputpriority: "SBU", chargerpriority: "Solar only", batterytype: "Lithium", maxchargecurrent: 48});
+  const now = Date.now(); hist = [];
+  for (let m = 24 * 60; m >= 0; m--) {
+    const t = now - m * 60e3, h = new Date(t).getHours() + new Date(t).getMinutes() / 60;
+    const sun = Math.max(0, Math.sin((h - 7) / 11 * Math.PI));
+    hist.push({t, pv: Math.round(2600 * sun * (0.85 + 0.15 * Math.sin(m / 17))),
+      load: Math.round(140 + 90 * Math.max(0, Math.sin((h - 17) / 6 * Math.PI)) + 40 * Math.sin(m / 9)), soc: null});
+  }
+  let soc = 38;
+  hist.forEach(p => { soc = Math.min(100, Math.max(15, soc + (p.pv - p.load) / (CONFIG.batteryKwh * 1000) * 100 / 60)); p.soc = Math.round(soc); });
+  for (let i = 29; i >= 0; i--) {
+    const k = dayKey(new Date(now - i * 86400e3)), cloud = 0.35 + 0.65 * Math.abs(Math.sin(i * 1.7));
+    days[k] = {pv: Math.round(14 * cloud * 10) / 10, load: Math.round((3.4 + 1.2 * Math.sin(i * 0.9)) * 10) / 10};
+  }
+  lastMsg = now;
+  $("demoNote").textContent = L.demoNote; $("demoNote").hidden = false;
+  render(); refreshConn(); drawCharts();
+}
+
+/* ---------- MQTT ---------- */
+const configured = !/x{8}/.test(CONFIG.url);
+if (!configured) {
+  loadDemo();
+} else {
+  try {
+    const client = mqtt.connect(CONFIG.url, {
+      username: CONFIG.username, password: CONFIG.password,
+      clientId: "viewer-" + Math.random().toString(16).slice(2, 10),
+      reconnectPeriod: 5000, connectTimeout: 10000, clean: true
+    });
+    client.on("connect", () => { connected = true; refreshConn(); client.subscribe(CONFIG.prefix + "/#"); });
+    client.on("close", () => { connected = false; refreshConn(); });
+    client.on("message", (topic, payload) => {
+      const msg = payload.toString();
+      const rest = topic.slice(CONFIG.prefix.length + 1).split("/");
+      if (rest[0] === "status") { online = msg === "online"; refreshConn(); return; }
+      if (rest[0] === "hist" && rest[1]) { parseHour(rest[1], msg); drawCharts(); return; }
+      if (rest[0] === "day" && rest[1]) { parseDay(msg); drawCharts(); return; }
+      if (rest.length >= 3 && rest[2] === "state") { S[key(rest[1])] = msg; lastMsg = Date.now(); render(); refreshConn(); }
+    });
+  } catch (e) { refreshConn(); }
+}
+setInterval(() => { refreshConn(); rebuildHist(); drawCharts(); }, 30000);
+render();
+showTab(location.hash === "#details" ? "details" : "now");
+</script>
+</body>
+</html>
