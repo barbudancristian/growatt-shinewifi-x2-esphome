@@ -1,0 +1,1 @@
+# growatt-shinewifi-x2-esphome
