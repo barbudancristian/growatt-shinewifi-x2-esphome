@@ -94,10 +94,9 @@ interval:
           id(mqtt_client).publish(topic, buf, 0, true);
 
           // ---- daily totals ----
-          float p1 = id(pv1_energy_today).state, p2 = id(pv2_energy_today).state;
+          float pe = id(pv_energy_today).state;
           float le = id(load_energy_today).state;
-          if (std::isnan(p1) || std::isnan(le)) return;
-          float pe = p1 + (std::isnan(p2) ? 0.0f : p2);
+          if (std::isnan(pe) || std::isnan(le)) return;
           static int cur_day = -1;
           static bool wait_reset = false;
           static float last_le = 0;
@@ -290,22 +289,10 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: spf
-    id: pv1_energy_today
-    name: "PV1 energy today"
+    id: pv_energy_today
+    name: "PV energy today"   # all PV inputs together
     register_type: read
     address: 48
-    value_type: U_DWORD
-    unit_of_measurement: "kWh"
-    accuracy_decimals: 1
-    filters:
-      - multiply: 0.1
-
-  - platform: modbus_controller
-    modbus_controller_id: spf
-    id: pv2_energy_today
-    name: "PV2 energy today"
-    register_type: read
-    address: 52
     value_type: U_DWORD
     unit_of_measurement: "kWh"
     accuracy_decimals: 1
@@ -398,18 +385,6 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: spf
-    id: operation_hours
-    name: "Operation hours"
-    register_type: read
-    address: 30
-    value_type: U_DWORD
-    unit_of_measurement: "h"
-    accuracy_decimals: 0
-    filters:
-      - multiply: 0.000138889
-
-  - platform: modbus_controller
-    modbus_controller_id: spf
     id: output_current
     name: "Output current"
     register_type: read
@@ -430,8 +405,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: spf
-    id: pv1_energy_total
-    name: "PV1 energy total"
+    id: pv_energy_total
+    name: "PV energy total"   # all PV inputs together
     register_type: read
     address: 50
     value_type: U_DWORD
@@ -442,20 +417,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: spf
-    id: pv2_energy_total
-    name: "PV2 energy total"
-    register_type: read
-    address: 54
-    value_type: U_DWORD
-    unit_of_measurement: "kWh"
-    accuracy_decimals: 1
-    filters:
-      - multiply: 0.1
-
-  - platform: modbus_controller
-    modbus_controller_id: spf
-    id: charge_energy_today
-    name: "Battery charge today"
+    id: ac_charge_today
+    name: "AC charge today"   # battery charged from grid/generator
     register_type: read
     address: 56
     value_type: U_DWORD
@@ -466,8 +429,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: spf
-    id: charge_energy_total
-    name: "Battery charge total"
+    id: ac_charge_total
+    name: "AC charge total"
     register_type: read
     address: 58
     value_type: U_DWORD

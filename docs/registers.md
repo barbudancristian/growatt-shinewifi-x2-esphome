@@ -1,6 +1,8 @@
 # Reference: Modbus registers and MQTT topics
 
-Growatt SPF off-grid protocol, as read by `growatt-dongle.yaml`. Values verified on an SPF 6000 ES Plus against an independent monitor (load, temperature, battery voltage, SOC, output voltage, battery power).
+Growatt SPF off-grid protocol, as read by `growatt-dongle.yaml`. Values verified on an SPF 6000 ES Plus against an independent monitor (load, temperature, battery voltage, SOC, output voltage, battery power, PV voltage and power, settings).
+
+On the SPF 6000 ES Plus, registers 52/54 (PV2 energy) stay at 0 even when PV2 produces, and register 30 (operating time) reads 0, so the firmware does not read them. Registers 56/58 count only charging from AC; solar charging is not included.
 
 ## Link
 
@@ -26,12 +28,10 @@ Growatt SPF off-grid protocol, as read by `growatt-dongle.yaml`. Values verified
 | 22 / 23 | Output voltage / frequency | U16 | 0.1 V / 0.01 Hz |
 | 25 / 26 | Inverter / DC-DC temperature | U16 | 0.1 °C |
 | 27 | Inverter load | U16 | 0.1 % |
-| 30 | Operating time | U32 | 0.5 s (÷ 7200 = hours) |
 | 34 | Output current | U16 | 0.1 A |
 | 42 / 43 | Fault / warning code | U16 | bit field |
-| 48 / 52 | PV1 / PV2 energy today | U32 | 0.1 kWh |
-| 50 / 54 | PV1 / PV2 energy total | U32 | 0.1 kWh |
-| 56 / 58 | Battery charge today / total | U32 | 0.1 kWh |
+| 48 / 50 | PV energy today / total (all PV inputs together) | U32 | 0.1 kWh |
+| 56 / 58 | Battery charged from AC (grid/generator) today / total | U32 | 0.1 kWh |
 | 60 / 62 | Battery discharge today / total | U32 | 0.1 kWh |
 | 73 | Battery discharge current | U16 | 0.1 A |
 | 77 | Battery power (+ discharging, − charging) | S32 | 0.1 W |

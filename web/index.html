@@ -182,12 +182,16 @@ footer{color:var(--muted);font-size:.8rem;text-align:center;margin-top:6px}
 
     <h2 data-t="panels"></h2>
     <div class="table"><table>
-      <thead><tr><th></th><th data-t="voltage"></th><th data-t="current"></th><th data-t="power"></th><th data-t="today"></th><th data-t="total"></th></tr></thead>
+      <thead><tr><th></th><th data-t="voltage"></th><th data-t="current"></th><th data-t="power"></th></tr></thead>
       <tbody>
-        <tr><td>PV1</td><td><b id="d-pv1v">–</b></td><td><b id="d-pv1a">–</b></td><td><b id="d-pv1w">–</b></td><td><b id="d-pv1e">–</b></td><td><b id="d-pv1t">–</b></td></tr>
-        <tr><td>PV2</td><td><b id="d-pv2v">–</b></td><td><b id="d-pv2a">–</b></td><td><b id="d-pv2w">–</b></td><td><b id="d-pv2e">–</b></td><td><b id="d-pv2t">–</b></td></tr>
+        <tr><td>PV1</td><td><b id="d-pv1v">–</b></td><td><b id="d-pv1a">–</b></td><td><b id="d-pv1w">–</b></td></tr>
+        <tr><td>PV2</td><td><b id="d-pv2v">–</b></td><td><b id="d-pv2a">–</b></td><td><b id="d-pv2w">–</b></td></tr>
       </tbody>
     </table></div>
+    <div class="grid">
+      <div class="kv"><span data-t="producedToday"></span><b id="d-pvE">–</b></div>
+      <div class="kv"><span data-t="producedTotal"></span><b id="d-pvT">–</b></div>
+    </div>
 
     <h2 data-t="battery"></h2>
     <div class="grid">
@@ -216,13 +220,11 @@ footer{color:var(--muted);font-size:.8rem;text-align:center;margin-top:6px}
     <h2 data-t="inverter"></h2>
     <div class="grid">
       <div class="kv"><span data-t="state"></span><b class="txt" id="d-st">–</b></div>
-      <div class="kv"><span data-t="hours"></span><b id="d-hrs">–</b></div>
       <div class="kv"><span data-t="tInverter"></span><b id="d-ti">–</b></div>
       <div class="kv"><span data-t="tDcdc"></span><b id="d-td">–</b></div>
       <div class="kv"><span data-t="busVoltage"></span><b id="d-bus">–</b></div>
       <div class="kv"><span data-t="faultCode"></span><b id="d-fc">–</b></div>
       <div class="kv"><span data-t="warningCode"></span><b id="d-wc">–</b></div>
-      <div class="kv"><span data-t="producedTotal"></span><b id="d-pvT">–</b></div>
     </div>
 
     <h2 data-t="settings"></h2>
@@ -270,7 +272,7 @@ const TXT = {
     inverter:"Inverter", today:"Today", produced:"Produced", consumed:"Consumed", summary:"At a glance", battVoltage:"Battery voltage",
     temperature:"Temperature", acOutput:"AC output", wifi:"Wi-Fi signal", chPower:"Power, last 24 h", chSoc:"Battery, last 24 h",
     chDays:"Per day, last 30", voltage:"Voltage", current:"Current", power:"Power", total:"Total", soc:"State of charge",
-    dischargeCurrent:"Discharge current", chargedToday:"Charged today", dischargedToday:"Discharged today", chargedTotal:"Charged total",
+    dischargeCurrent:"Discharge current", chargedToday:"AC charged today", producedToday:"Produced today", dischargedToday:"Discharged today", chargedTotal:"AC charged total",
     dischargedTotal:"Discharged total", acOutputTitle:"AC output (house)", activePower:"Active power", apparentPower:"Apparent power",
     frequency:"Frequency", loadPercent:"Inverter load", loadToday:"Consumed today", loadTotal:"Consumed total", state:"State",
     hours:"Operating hours", tInverter:"Inverter temp.", tDcdc:"DC-DC temp.", busVoltage:"Bus voltage", faultCode:"Fault code",
@@ -288,7 +290,7 @@ const TXT = {
     inverter:"Invertor", today:"Azi", produced:"Produs", consumed:"Consumat", summary:"Pe scurt", battVoltage:"Tensiune baterie",
     temperature:"Temperatură", acOutput:"Ieșire AC", wifi:"Semnal Wi-Fi", chPower:"Putere, ultimele 24 h", chSoc:"Baterie, ultimele 24 h",
     chDays:"Pe zile, ultimele 30", voltage:"Tensiune", current:"Curent", power:"Putere", total:"Total", soc:"Stare de încărcare",
-    dischargeCurrent:"Curent descărcare", chargedToday:"Încărcat azi", dischargedToday:"Descărcat azi", chargedTotal:"Încărcat total",
+    dischargeCurrent:"Curent descărcare", chargedToday:"Încărcat din AC azi", producedToday:"Produs azi", dischargedToday:"Descărcat azi", chargedTotal:"Încărcat din AC total",
     dischargedTotal:"Descărcat total", acOutputTitle:"Ieșire AC (casa)", activePower:"Putere activă", apparentPower:"Putere aparentă",
     frequency:"Frecvență", loadPercent:"Încărcare invertor", loadToday:"Consum azi", loadTotal:"Consum total", state:"Stare",
     hours:"Ore funcționare", tInverter:"Temp. invertor", tDcdc:"Temp. DC-DC", busVoltage:"Tensiune bus", faultCode:"Cod eroare",
@@ -468,8 +470,8 @@ function render() {
   set("status", status || "–");
   $("status").className = "chip" + ((fault && fault > 0) || S["status"] === "Fault" ? " fault" : "");
 
-  const e1 = get("pv1energytoday"), e2 = get("pv2energytoday");
-  set("eToday", e1 === null ? "–" : fmt((e1 || 0) + (e2 || 0), 1) + " kWh");
+  const eT = get("pvenergytoday");
+  set("eToday", u(eT, 1, "kWh"));
   set("lToday", u(get("loadenergytoday"), 1, "kWh"));
   set("bv", u(get("batteryvoltage"), 1, "V"));
   set("temp", u(get("invertertemperature"), 1, "°C"));
@@ -478,24 +480,22 @@ function render() {
   set("wifi", u(get("wifisignal"), 0, "dBm"));
 
   set("d-pv1v", u(get("pv1voltage"), 1, "V")); set("d-pv1a", u(get("pv1current"), 1, "A")); set("d-pv1w", u(get("pv1power"), 0, "W"));
-  set("d-pv1e", u(e1, 1, "kWh")); set("d-pv1t", u(get("pv1energytotal"), 0, "kWh"));
+
   set("d-pv2v", u(get("pv2voltage"), 1, "V")); set("d-pv2a", u(get("pv2current"), 1, "A")); set("d-pv2w", u(get("pv2power"), 0, "W"));
-  set("d-pv2e", u(e2, 1, "kWh")); set("d-pv2t", u(get("pv2energytotal"), 0, "kWh"));
+  set("d-pvE", u(eT, 1, "kWh")); set("d-pvT", u(get("pvenergytotal"), 0, "kWh"));
   set("d-soc", u(soc, 0, "%")); set("d-bv", u(get("batteryvoltage"), 2, "V"));
   set("d-bp", bp === null ? "–" : (bp > 15 ? "−" : bp < -15 ? "+" : "") + fmt(Math.abs(bp)) + " W");
   set("d-bda", u(get("batterydischargecurrent"), 1, "A"));
-  set("d-cht", u(get("batterychargetoday"), 1, "kWh")); set("d-dct", u(get("batterydischargetoday"), 1, "kWh"));
-  set("d-chT", u(get("batterychargetotal"), 0, "kWh")); set("d-dcT", u(get("batterydischargetotal"), 0, "kWh"));
+  set("d-cht", u(get("acchargetoday"), 1, "kWh")); set("d-dct", u(get("batterydischargetoday"), 1, "kWh"));
+  set("d-chT", u(get("acchargetotal"), 0, "kWh")); set("d-dcT", u(get("batterydischargetotal"), 0, "kWh"));
   set("d-lw", u(load, 0, "W")); set("d-lva", u(get("outputapparentpower"), 0, "VA"));
   set("d-ov", u(ov, 1, "V")); set("d-of", u(of, 2, "Hz")); set("d-oa", u(get("outputcurrent"), 1, "A"));
   set("d-lp", u(get("loadpercent"), 1, "%")); set("d-le", u(get("loadenergytoday"), 1, "kWh")); set("d-lT", u(get("loadenergytotal"), 0, "kWh"));
-  set("d-st", status || "–"); set("d-hrs", u(get("operationhours"), 0, "h"));
+  set("d-st", status || "–");
   set("d-ti", u(get("invertertemperature"), 1, "°C")); set("d-td", u(get("dcdctemperature"), 1, "°C"));
   set("d-bus", u(get("busvoltage"), 1, "V"));
   set("d-fc", fault === null ? "–" : fault === 0 ? L.none : fmt(fault));
   const wc = get("warningcode"); set("d-wc", wc === null ? "–" : wc === 0 ? L.none : fmt(wc));
-  const t1 = get("pv1energytotal"), t2 = get("pv2energytotal");
-  set("d-pvT", t1 === null ? "–" : fmt((t1 || 0) + (t2 || 0), 0) + " kWh");
   set("d-op", tr(L.op, S["outputpriority"]) || "–");
   set("d-cp", tr(L.cp, S["chargerpriority"]) || "–");
   set("d-bt", S["batterytype"] || "–");
@@ -524,9 +524,9 @@ function loadDemo() {
   Object.assign(S, {batterysoc: 43, pvpowertotal: 0, pv1power: 0, pv2power: 0, pv1voltage: 0, pv2voltage: 0, pv1current: 0, pv2current: 0,
     loadpower: 141, batterypower: 188, batteryvoltage: 52.24, loadpercent: 2.3, outputvoltage: 230.1, outputfrequency: 49.99,
     outputcurrent: 0.8, outputapparentpower: 180, invertertemperature: 32.4, dcdctemperature: 30.1, busvoltage: 384.2, faultcode: 0,
-    warningcode: 0, pv1energytoday: 4.6, pv2energytoday: 0, pv1energytotal: 1874, pv2energytotal: 0, loadenergytoday: 2.7,
-    loadenergytotal: 1530, batterychargetoday: 2.4, batterydischargetoday: 1.9, batterychargetotal: 912, batterydischargetotal: 845,
-    batterydischargecurrent: 3.6, operationhours: 4120, wifisignal: -54, uptime: 7380, status: "Discharge", ipaddress: "192.168.1.57",
+    warningcode: 0, pvenergytoday: 4.6, pvenergytotal: 1874, loadenergytoday: 2.7,
+    loadenergytotal: 1530, acchargetoday: 0, batterydischargetoday: 1.9, acchargetotal: 4.1, batterydischargetotal: 845,
+    batterydischargecurrent: 3.6, wifisignal: -54, uptime: 7380, status: "Discharge", ipaddress: "192.168.1.57",
     outputpriority: "SBU", chargerpriority: "Solar only", batterytype: "Lithium", maxchargecurrent: 48});
   const now = Date.now(); hist = [];
   for (let m = 24 * 60; m >= 0; m--) {
