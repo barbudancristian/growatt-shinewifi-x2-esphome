@@ -129,12 +129,26 @@ If any of these is enabled, **stop here**: custom firmware will not run on that 
 
 ## 7. Back up the stock Growatt firmware
 
-Read the whole flash twice and compare (replug the adapter before each read):
+Read the whole flash twice and compare. Run the commands **one at a time, not all at once**: the adapter cannot reset the chip (its RTS pin is not wired), and after a read the chip stays at 230400 baud, so a second command run right after the first one fails.
+
+**a) First backup.** Unplug the adapter from USB, plug it back in, then:
 
 ```
 python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 read-flash 0 ALL stock_backup_1.bin
+```
+
+**b) Second backup.** Wait for the first read to finish, unplug the adapter from USB again, plug it back in, then:
+
+```
 python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 read-flash 0 ALL stock_backup_2.bin
-Get-FileHash stock_backup_1.bin, stock_backup_2.bin
+```
+
+**c) Move them into a separate folder and compare them** (the adapter is not needed for this):
+
+```
+mkdir Backup-ShineWiFi-X2
+Move-Item stock_backup_1.bin, stock_backup_2.bin Backup-ShineWiFi-X2
+Get-FileHash Backup-ShineWiFi-X2\*.bin
 ```
 
 Each read takes about 3 minutes and gives a 4,194,304-byte file. The two SHA256 hashes must be identical. If not, repeat with `-b 115200`.
@@ -344,7 +358,7 @@ Useful miniterm keys: **Ctrl+]** exit, **Ctrl+T Ctrl+B** toggle break.
 Wire the adapter as in step 4, bridge IO9, replug, then:
 
 ```
-python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 write-flash 0x0 stock_backup_1.bin
+python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 write-flash 0x0 Backup-ShineWiFi-X2\stock_backup_1.bin
 ```
 
 Remove the bridge and replug. The stick is exactly as it came from the factory, including its connection to the Growatt cloud.

@@ -129,12 +129,26 @@ Dacă oricare dintre ele e activat, **oprește-te aici**: pe acel stick firmware
 
 ## 7. Backup-ul firmware-ului Growatt
 
-Citește toată memoria de două ori și compară rezultatele. Scoate și bagă la loc adaptorul înainte de fiecare citire.
+Citește toată memoria de două ori și compară rezultatele. Comenzile se dau **pe rând, nu toate odată**: adaptorul nu poate reseta cipul (pinul RTS nu e legat), iar după o citire cipul rămâne la viteza de 230400, așa că o a doua comandă dată imediat după prima eșuează.
+
+**a) Primul backup.** Scoate adaptorul din USB, bagă-l la loc, apoi:
 
 ```
 python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 read-flash 0 ALL stock_backup_1.bin
+```
+
+**b) Al doilea backup.** Așteaptă să termine prima citire, scoate din nou adaptorul din USB, bagă-l la loc, apoi:
+
+```
 python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 read-flash 0 ALL stock_backup_2.bin
-Get-FileHash stock_backup_1.bin, stock_backup_2.bin
+```
+
+**c) Mută-le într-un folder separat și compară-le** (aici nu mai e nevoie de adaptor):
+
+```
+mkdir Backup-ShineWiFi-X2
+Move-Item stock_backup_1.bin, stock_backup_2.bin Backup-ShineWiFi-X2
+Get-FileHash Backup-ShineWiFi-X2\*.bin
 ```
 
 Fiecare citire durează cam 3 minute și produce un fișier de 4.194.304 octeți. Cele două hash-uri SHA256 trebuie să fie identice. Dacă nu sunt, repetă cu `-b 115200`.
@@ -344,7 +358,7 @@ Taste utile în miniterm: **Ctrl+]** ieșire, **Ctrl+T Ctrl+B** pornește/opreș
 Legi adaptorul ca la pasul 4, pui puntea IO9, scoți și bagi la loc adaptorul, apoi:
 
 ```
-python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 write-flash 0x0 stock_backup_1.bin
+python -m esptool --chip esp32c3 -p COM7 --before no-reset -b 230400 write-flash 0x0 Backup-ShineWiFi-X2\stock_backup_1.bin
 ```
 
 Scoți puntea și repornești. Stick-ul e exact ca din fabrică, inclusiv legătura cu cloud-ul Growatt.
